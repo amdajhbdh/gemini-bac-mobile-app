@@ -1,0 +1,8 @@
+{
+  "name": "LessonSync",
+  "description": "Unified WhatsApp lesson dashboard with AI-powered OCR, automated study guides, schedule synchronizer, flashcards, notes, and study analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
