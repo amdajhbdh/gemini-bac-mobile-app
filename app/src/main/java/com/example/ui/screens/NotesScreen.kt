@@ -139,7 +139,7 @@ fun NotesScreen(
                                         if (selectedNote == null) {
                                             viewModel.createNote(noteTitleInput, noteContentInput)
                                         } else {
-                                            viewModel.editNote(selectedNote!!.id, noteTitleInput, noteContentInput)
+                                            viewModel.editNote(selectedNote?.id ?: 0, noteTitleInput, noteContentInput)
                                         }
                                         isEditing = false
                                         selectedNote = null
@@ -155,7 +155,7 @@ fun NotesScreen(
                 }
             } else if (selectedNote != null) {
                 // READ INDIVIDUAL NOTE SCREEN
-                val note = selectedNote!!
+                val note = selectedNote ?: return
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     modifier = Modifier

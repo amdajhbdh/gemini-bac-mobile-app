@@ -408,7 +408,8 @@ fun StudyAssistantScreen(
             var examContentInput by remember { mutableStateOf("") }
             var activeExamDetail by remember { mutableStateOf<IndexedExam?>(null) }
 
-            if (activeExamDetail != null) {
+            val exam = activeExamDetail
+            if (exam != null) {
                 // EXAM DETAIL VIEW OVERLAY
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -431,7 +432,7 @@ fun StudyAssistantScreen(
                             }
                             
                             IconButton(onClick = {
-                                viewModel.deleteIndexedExam(activeExamDetail!!.id)
+                                viewModel.deleteIndexedExam(exam.id)
                                 activeExamDetail = null
                             }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Delete Exam", tint = MaterialTheme.colorScheme.error)
@@ -440,20 +441,20 @@ fun StudyAssistantScreen(
 
                         Divider(modifier = Modifier.padding(vertical = 8.dp))
 
-                        Text(activeExamDetail!!.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(exam.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         
                         Surface(
                             color = MaterialTheme.colorScheme.secondaryContainer,
                             shape = RoundedCornerShape(4.dp),
                             modifier = Modifier.padding(vertical = 6.dp)
                         ) {
-                            Text(activeExamDetail!!.subject, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                            Text(exam.subject, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
                         
                         Text(
-                            text = activeExamDetail!!.content,
+                            text = exam.content,
                             style = MaterialTheme.typography.bodyMedium,
                             lineHeight = 22.sp,
                             fontFamily = FontFamily.Monospace,
