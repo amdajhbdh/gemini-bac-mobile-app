@@ -22,7 +22,7 @@ object StorageHelper {
      * Programmatically generate and save a highly recognizable QR block pattern
      * as an image file directly to '/storage/emulated/0/Download/LessonSync/'.
      */
-    fun saveMockQrToStorage(context: Context, isPersonal: Boolean): File? {
+    fun saveMockQrToStorage(context: Context, isPersonal: Boolean, base64Str: String? = null): File? {
         val folder = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "LessonSync")
         if (!folder.exists()) {
             folder.mkdirs()
@@ -30,65 +30,78 @@ object StorageHelper {
         val filename = if (isPersonal) "Lessonsync_Personal_QR.png" else "Lessonsync_Business_QR.png"
         val file = File(folder, filename)
         return try {
-            val size = 512
-            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bitmap)
-            val paint = Paint()
+            if (base64Str != null && base64Str.isNotBlank() && !base64Str.contains("MOCK")) {
+                val cleanStr = if (base64Str.startsWith("data:image")) {
+                    base64Str.substringAfter(",")
+                } else {
+                    base64Str
+                }
+                val decodedBytes = android.util.Base64.decode(cleanStr, android.util.Base64.DEFAULT)
+                val out = FileOutputStream(file)
+                out.write(decodedBytes)
+                out.flush()
+                out.close()
+            } else {
+                val size = 512
+                val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(bitmap)
+                val paint = Paint()
 
-            // Background
-            paint.color = AndroidColor.WHITE
-            canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), paint)
+                // Background
+                paint.color = AndroidColor.WHITE
+                canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), paint)
 
-            // Draw QR corners
-            paint.color = AndroidColor.BLACK
-            // Top-left corner block
-            canvas.drawRect(20f, 20f, 130f, 130f, paint)
-            paint.color = AndroidColor.WHITE
-            canvas.drawRect(35f, 35f, 115f, 115f, paint)
-            paint.color = AndroidColor.BLACK
-            canvas.drawRect(50f, 50f, 100f, 100f, paint)
+                // Draw QR corners
+                paint.color = AndroidColor.BLACK
+                // Top-left corner block
+                canvas.drawRect(20f, 20f, 130f, 130f, paint)
+                paint.color = AndroidColor.WHITE
+                canvas.drawRect(35f, 35f, 115f, 115f, paint)
+                paint.color = AndroidColor.BLACK
+                canvas.drawRect(50f, 50f, 100f, 100f, paint)
 
-            // Top-right corner block
-            canvas.drawRect(382f, 20f, 492f, 130f, paint)
-            paint.color = AndroidColor.WHITE
-            canvas.drawRect(397f, 35f, 477f, 115f, paint)
-            paint.color = AndroidColor.BLACK
-            canvas.drawRect(412f, 50f, 462f, 100f, paint)
+                // Top-right corner block
+                canvas.drawRect(382f, 20f, 492f, 130f, paint)
+                paint.color = AndroidColor.WHITE
+                canvas.drawRect(397f, 35f, 477f, 115f, paint)
+                paint.color = AndroidColor.BLACK
+                canvas.drawRect(412f, 50f, 462f, 100f, paint)
 
-            // Bottom-left corner block
-            canvas.drawRect(20f, 382f, 130f, 492f, paint)
-            paint.color = AndroidColor.WHITE
-            canvas.drawRect(35f, 397f, 115f, 477f, paint)
-            paint.color = AndroidColor.BLACK
-            canvas.drawRect(50f, 412f, 100f, 462f, paint)
+                // Bottom-left corner block
+                canvas.drawRect(20f, 382f, 130f, 492f, paint)
+                paint.color = AndroidColor.WHITE
+                canvas.drawRect(35f, 397f, 115f, 477f, paint)
+                paint.color = AndroidColor.BLACK
+                canvas.drawRect(50f, 412f, 100f, 462f, paint)
 
-            // Draw beautiful dummy scanning blocks
-            val random = java.util.Random(101010L)
-            for (x in 2..30) {
-                for (y in 2..30) {
-                    if ((x < 10 && y < 10) || (x > 22 && y < 10) || (x < 10 && y > 22)) {
-                        continue // skip finder pattern areas
-                    }
-                    if (random.nextBoolean()) {
-                        paint.color = AndroidColor.BLACK
-                        canvas.drawRect((x * 16).toFloat(), (y * 16).toFloat(), ((x + 1) * 16).toFloat(), ((y + 1) * 16).toFloat(), paint)
+                // Draw beautiful dummy scanning blocks
+                val random = java.util.Random(101010L)
+                for (x in 2..30) {
+                    for (y in 2..30) {
+                        if ((x < 10 && y < 10) || (x > 22 && y < 10) || (x < 10 && y > 22)) {
+                            continue // skip finder pattern areas
+                        }
+                        if (random.nextBoolean()) {
+                            paint.color = AndroidColor.BLACK
+                            canvas.drawRect((x * 16).toFloat(), (y * 16).toFloat(), ((x + 1) * 16).toFloat(), ((y + 1) * 16).toFloat(), paint)
+                        }
                     }
                 }
+
+                // Draw central branding block
+                paint.color = if (isPersonal) AndroidColor.parseColor("#2E7D32") else AndroidColor.parseColor("#0277BD")
+                canvas.drawRect(210f, 210f, 302f, 302f, paint)
+                paint.color = AndroidColor.WHITE
+                paint.textSize = 28f
+                paint.isFakeBoldText = true
+                paint.textAlign = Paint.Align.CENTER
+                canvas.drawText("LS", 256f, 266f, paint)
+
+                val out = FileOutputStream(file)
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                out.flush()
+                out.close()
             }
-
-            // Draw central branding block
-            paint.color = if (isPersonal) AndroidColor.parseColor("#2E7D32") else AndroidColor.parseColor("#0277BD")
-            canvas.drawRect(210f, 210f, 302f, 302f, paint)
-            paint.color = AndroidColor.WHITE
-            paint.textSize = 28f
-            paint.isFakeBoldText = true
-            paint.textAlign = Paint.Align.CENTER
-            canvas.drawText("LS", 256f, 266f, paint)
-
-            val out = FileOutputStream(file)
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-            out.flush()
-            out.close()
 
             // Send scanner system media scan request for the saved file so picker can see it
             try {

@@ -242,7 +242,13 @@ class LessonSyncViewModel(
 
                 if (responseResult.isSuccess) {
                     val data = responseResult.getOrNull()
-                    if (data != null && data.error == null) {
+                    if (data != null) {
+                        if (data.error != null) {
+                            _cobaltStatus.value = "ERROR"
+                            _syncStatusText.value = "[COBALT ERROR] Gateway returned error: ${data.error}"
+                            _authState.value = _authState.value.copy(authLoading = false)
+                            return@launch
+                        }
                         _cobaltStatus.value = data.status // E.g. "PAIRING_QR" or "CONNECTED"
                         _cobaltQrCode.value = data.qrCodeBase64
                         _cobaltPairingCode.value = data.pairingCode
@@ -258,21 +264,13 @@ class LessonSyncViewModel(
                     }
                 }
                 
-                // Fallback / Server Unreachable logic
-                _syncStatusText.value = "[COBALT GATEWAY OFFLINE] Cobalt server at $sUrl was offline. Booting sandbox simulation node on-device to model Cobalt API outputs!"
-                withContext(Dispatchers.IO) { kotlinx.coroutines.delay(1200) }
-                
-                _cobaltStatus.value = "SCAN_QR"
-                _cobaltQrCode.value = "MOCK_QR_DATA_FOR_COBALT_HANDSHAKE_SESSION_XYZ123_PURE_KOTLIN_COMPATIBLE"
-                _cobaltPairingCode.value = "W8X2-K9R1"
-                
-                _authState.value = _authState.value.copy(
-                    isPersonalConnected = false,
-                    personalPhone = phone,
-                    authLoading = false
-                )
-                
-                startSimulatedCobaltPolling(phone, true)
+                // Real Gateway failure
+                val ex = responseResult.exceptionOrNull()
+                val exMsg = ex?.localizedMessage ?: "Connection refused or server offline"
+                _cobaltStatus.value = "ERROR"
+                _syncStatusText.value = "[COBALT GATEWAY UNREACHABLE] Connection to $sUrl failed: $exMsg. " +
+                        "Please verify your Cobalt instance is running and accessible."
+                _authState.value = _authState.value.copy(authLoading = false)
             } else {
                 // Classic local simulation
                 withContext(Dispatchers.IO) { kotlinx.coroutines.delay(1200) }
@@ -312,7 +310,13 @@ class LessonSyncViewModel(
 
                 if (responseResult.isSuccess) {
                     val data = responseResult.getOrNull()
-                    if (data != null && data.error == null) {
+                    if (data != null) {
+                        if (data.error != null) {
+                            _cobaltStatus.value = "ERROR"
+                            _syncStatusText.value = "[COBALT BZ ERROR] Gateway returned error: ${data.error}"
+                            _authState.value = _authState.value.copy(authLoading = false)
+                            return@launch
+                        }
                         _cobaltStatus.value = data.status
                         _cobaltQrCode.value = data.qrCodeBase64
                         _cobaltPairingCode.value = data.pairingCode
@@ -328,20 +332,13 @@ class LessonSyncViewModel(
                     }
                 }
                 
-                // Fallback simulation
-                _syncStatusText.value = "[COBALT BUSINESS GATEWAY OFFLINE] Server at $sUrl offline. Starting on-device simulation sandbox..."
-                withContext(Dispatchers.IO) { kotlinx.coroutines.delay(1200) }
-                
-                _cobaltStatus.value = "SCAN_QR"
-                _cobaltQrCode.value = "MOCK_BIZ_QR_DATA_FOR_COBALT_HANDSHAKE"
-                _cobaltPairingCode.value = "B5M7-Y1X8"
-                
-                _authState.value = _authState.value.copy(
-                    isBusinessConnected = false,
-                    businessPhone = phone,
-                    authLoading = false
-                )
-                startSimulatedCobaltPolling(phone, false)
+                // Real Gateway failure
+                val ex = responseResult.exceptionOrNull()
+                val exMsg = ex?.localizedMessage ?: "Connection refused or server offline"
+                _cobaltStatus.value = "ERROR"
+                _syncStatusText.value = "[COBALT BZ UNREACHABLE] Connection to $sUrl failed: $exMsg. " +
+                        "Please verify your Cobalt Business instance is running and accessible."
+                _authState.value = _authState.value.copy(authLoading = false)
             } else {
                 withContext(Dispatchers.IO) { kotlinx.coroutines.delay(1200) }
                 _authState.value = _authState.value.copy(

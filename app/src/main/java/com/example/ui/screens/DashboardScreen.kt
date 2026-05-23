@@ -2,6 +2,8 @@ package com.example.ui.screens
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.util.Base64
+import androidx.compose.ui.graphics.asImageBitmap
 import android.view.View
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
@@ -401,32 +403,62 @@ fun DashboardScreen(
                                 )
                                 Spacer(modifier = Modifier.height(10.dp))
                                 
-                                // Beautiful Pseudo QR Code Representation
-                                Box(
-                                    modifier = Modifier
-                                        .size(140.dp)
-                                        .background(Color.White, RoundedCornerShape(8.dp))
-                                        .border(2.dp, Color.Black, RoundedCornerShape(8.dp))
-                                        .padding(8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(
-                                        verticalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier.fillMaxSize()
-                                    ) {
-                                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                            Box(modifier = Modifier.size(28.dp).background(Color.Black))
-                                             Box(modifier = Modifier.size(28.dp).background(Color.Black))
+                                val realQrBitmap = remember(cobaltQrCode) {
+                                    if (cobaltQrCode != null && !cobaltQrCode.contains("MOCK")) {
+                                        try {
+                                            val cleanStr = if (cobaltQrCode!!.startsWith("data:image")) {
+                                                cobaltQrCode!!.substringAfter(",")
+                                            } else {
+                                                cobaltQrCode!!
+                                            }
+                                            val decodedBytes = Base64.decode(cleanStr, Base64.DEFAULT)
+                                            android.graphics.BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+                                        } catch (e: Exception) {
+                                            null
                                         }
-                                        Icon(
-                                            imageVector = Icons.Default.QrCodeScanner,
-                                            contentDescription = "QR",
-                                            tint = Color.DarkGray,
-                                            modifier = Modifier.size(34.dp)
-                                        )
-                                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                            Box(modifier = Modifier.size(28.dp).background(Color.Black))
-                                            Box(modifier = Modifier.size(24.dp).background(Color.Gray)) // offset
+                                    } else {
+                                        null
+                                    }
+                                }
+
+                                if (realQrBitmap != null) {
+                                    Image(
+                                        bitmap = realQrBitmap.asImageBitmap(),
+                                        contentDescription = "Real Cobalt QR Code",
+                                        modifier = Modifier
+                                            .size(160.dp)
+                                            .background(Color.White, RoundedCornerShape(8.dp))
+                                            .border(2.dp, Color.Black, RoundedCornerShape(8.dp))
+                                            .padding(6.dp)
+                                    )
+                                } else {
+                                    // Beautiful Pseudo QR Code Representation
+                                    Box(
+                                        modifier = Modifier
+                                            .size(140.dp)
+                                            .background(Color.White, RoundedCornerShape(8.dp))
+                                            .border(2.dp, Color.Black, RoundedCornerShape(8.dp))
+                                            .padding(8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(
+                                            verticalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier.fillMaxSize()
+                                        ) {
+                                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                                Box(modifier = Modifier.size(28.dp).background(Color.Black))
+                                                Box(modifier = Modifier.size(28.dp).background(Color.Black))
+                                            }
+                                            Icon(
+                                                imageVector = Icons.Default.QrCodeScanner,
+                                                contentDescription = "QR",
+                                                tint = Color.DarkGray,
+                                                modifier = Modifier.size(34.dp)
+                                            )
+                                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                                Box(modifier = Modifier.size(28.dp).background(Color.Black))
+                                                Box(modifier = Modifier.size(24.dp).background(Color.Gray)) // offset
+                                            }
                                         }
                                     }
                                 }
@@ -437,7 +469,7 @@ fun DashboardScreen(
                                 ) {
                                     OutlinedButton(
                                         onClick = {
-                                            val file = com.example.network.StorageHelper.saveMockQrToStorage(context, true)
+                                            val file = com.example.network.StorageHelper.saveMockQrToStorage(context, true, cobaltQrCode)
                                             if (file != null) {
                                                 android.widget.Toast.makeText(context, "💾 QR Image saved to '/storage/emulated/0/Download/LessonSync/Lessonsync_Personal_QR.png'!", android.widget.Toast.LENGTH_LONG).show()
                                             } else {
@@ -511,6 +543,33 @@ fun DashboardScreen(
                             Text("Handshaking session...", fontWeight = FontWeight.Bold)
                             Text(syncStatusText, fontSize = 11.sp, color = Color.Gray, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         }
+                    } else if (cobaltStatus == "ERROR") {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Error,
+                                        contentDescription = "Error",
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Connection Error", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(syncStatusText, fontSize = 11.sp, color = MaterialTheme.colorScheme.onErrorContainer)
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Button(
+                                    onClick = { viewModel.disconnectPersonalWhatsApp() },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                    modifier = Modifier.align(Alignment.End)
+                                ) {
+                                    Text("Try Again")
+                                }
+                            }
+                        }
                     } else {
                         // STANDARD SELECTION PANEL
                         Text(
@@ -567,7 +626,7 @@ fun DashboardScreen(
                 }
             },
             confirmButton = {
-                if (cobaltStatus == "SCAN_QR" || cobaltStatus == "CONNECTING") {
+                if (cobaltStatus == "SCAN_QR" || cobaltStatus == "CONNECTING" || cobaltStatus == "ERROR") {
                     TextButton(onClick = { 
                         viewModel.disconnectPersonalWhatsApp()
                     }) {
@@ -636,31 +695,62 @@ fun DashboardScreen(
                                 )
                                 Spacer(modifier = Modifier.height(10.dp))
                                 
-                                Box(
-                                    modifier = Modifier
-                                        .size(130.dp)
-                                        .background(Color.White, RoundedCornerShape(8.dp))
-                                        .border(2.dp, Color.Black, RoundedCornerShape(8.dp))
-                                        .padding(8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(
-                                        verticalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier.fillMaxSize()
-                                    ) {
-                                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                            Box(modifier = Modifier.size(26.dp).background(Color.Black))
-                                            Box(modifier = Modifier.size(26.dp).background(Color.Black))
+                                val realQrBitmap = remember(cobaltQrCode) {
+                                    if (cobaltQrCode != null && !cobaltQrCode.contains("MOCK")) {
+                                        try {
+                                            val cleanStr = if (cobaltQrCode!!.startsWith("data:image")) {
+                                                cobaltQrCode!!.substringAfter(",")
+                                            } else {
+                                                cobaltQrCode!!
+                                            }
+                                            val decodedBytes = Base64.decode(cleanStr, Base64.DEFAULT)
+                                            android.graphics.BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+                                        } catch (e: Exception) {
+                                            null
                                         }
-                                        Icon(
-                                            imageVector = Icons.Default.QrCodeScanner,
-                                            contentDescription = "QR SDK",
-                                            tint = Color.DarkGray,
-                                            modifier = Modifier.size(34.dp)
-                                        )
-                                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                            Box(modifier = Modifier.size(26.dp).background(Color.Black))
-                                            Box(modifier = Modifier.size(22.dp).background(Color.Gray))
+                                    } else {
+                                        null
+                                    }
+                                }
+
+                                if (realQrBitmap != null) {
+                                    Image(
+                                        bitmap = realQrBitmap.asImageBitmap(),
+                                        contentDescription = "Real Cobalt Business QR Code",
+                                        modifier = Modifier
+                                            .size(160.dp)
+                                            .background(Color.White, RoundedCornerShape(8.dp))
+                                            .border(2.dp, Color.Black, RoundedCornerShape(8.dp))
+                                            .padding(6.dp)
+                                    )
+                                } else {
+                                    // Beautiful Pseudo QR Code Representation
+                                    Box(
+                                        modifier = Modifier
+                                            .size(130.dp)
+                                            .background(Color.White, RoundedCornerShape(8.dp))
+                                            .border(2.dp, Color.Black, RoundedCornerShape(8.dp))
+                                            .padding(8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(
+                                            verticalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier.fillMaxSize()
+                                        ) {
+                                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                                Box(modifier = Modifier.size(26.dp).background(Color.Black))
+                                                Box(modifier = Modifier.size(26.dp).background(Color.Black))
+                                            }
+                                            Icon(
+                                                imageVector = Icons.Default.QrCodeScanner,
+                                                contentDescription = "QR SDK",
+                                                tint = Color.DarkGray,
+                                                modifier = Modifier.size(34.dp)
+                                            )
+                                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                                Box(modifier = Modifier.size(26.dp).background(Color.Black))
+                                                Box(modifier = Modifier.size(22.dp).background(Color.Gray))
+                                            }
                                         }
                                     }
                                 }
@@ -671,7 +761,7 @@ fun DashboardScreen(
                                 ) {
                                     OutlinedButton(
                                         onClick = {
-                                            val file = com.example.network.StorageHelper.saveMockQrToStorage(context, false)
+                                            val file = com.example.network.StorageHelper.saveMockQrToStorage(context, false, cobaltQrCode)
                                             if (file != null) {
                                                 android.widget.Toast.makeText(context, "💾 QR Image saved to '/storage/emulated/0/Download/LessonSync/Lessonsync_Business_QR.png'!", android.widget.Toast.LENGTH_LONG).show()
                                             } else {
@@ -743,6 +833,33 @@ fun DashboardScreen(
                             Spacer(modifier = Modifier.height(12.dp))
                             Text("Handshaking Business session...", fontWeight = FontWeight.Bold)
                             Text(syncStatusText, fontSize = 11.sp, color = Color.Gray, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        }
+                    } else if (cobaltStatus == "ERROR") {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Error,
+                                        contentDescription = "Error",
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Business Connection Error", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(syncStatusText, fontSize = 11.sp, color = MaterialTheme.colorScheme.onErrorContainer)
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Button(
+                                    onClick = { viewModel.disconnectBusinessWhatsApp() },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                    modifier = Modifier.align(Alignment.End)
+                                ) {
+                                    Text("Try Again")
+                                }
+                            }
                         }
                     } else {
                         Text(
