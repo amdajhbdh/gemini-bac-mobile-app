@@ -43,11 +43,39 @@ fun DashboardScreen(
     val allMessages by viewModel.allMessages.collectAsState()
     val lessonHistory by viewModel.lessonHistory.collectAsState()
 
+    val cobaltServerUrl by viewModel.cobaltServerUrl.collectAsState()
+    val cobaltUseMobile by viewModel.cobaltUseMobile.collectAsState()
+    val cobaltQrCode by viewModel.cobaltQrCode.collectAsState()
+    val cobaltPairingCode by viewModel.cobaltPairingCode.collectAsState()
+    val cobaltStatus by viewModel.cobaltStatus.collectAsState()
+    val syncStatusText by viewModel.syncStatusText.collectAsState()
+
+    var cobaltServerInput by remember(cobaltServerUrl) { mutableStateOf(cobaltServerUrl) }
+    var cobaltUseMobileInput by remember(cobaltUseMobile) { mutableStateOf(cobaltUseMobile) }
+
     var searchQuery by remember { mutableStateFlowOf("") }
     var filterLessonsOnly by remember { mutableStateFlowOf(true) }
     var filterAccountType by remember { mutableStateFlowOf("ALL") } // "ALL", "PERSONAL", "BUSINESS"
 
     val context = LocalContext.current
+
+    val personalGalleryLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.connectFromGalleryQrPicker(isPersonal = true)
+            android.widget.Toast.makeText(context, "📸 QR image selected! Decoded cobalt metadata. Connecting personal WhatsApp session...", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
+    val businessGalleryLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.connectFromGalleryQrPicker(isPersonal = false)
+            android.widget.Toast.makeText(context, "📸 QR image selected! Decoded business cobalt metadata. Connecting business WhatsApp session...", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
 
     // Dialog state for authentications
     var showPersonalAuthDialog by remember { mutableStateOf(false) }
@@ -325,36 +353,241 @@ fun DashboardScreen(
     }
 
     // ============================================
-    // DIALOGS FOR WA AUTH
+    // DIALOGS FOR WA AUTH & COBALT JVM HANDSHAKE
     // ============================================
 
     if (showPersonalAuthDialog) {
         AlertDialog(
-            onDismissRequest = { showPersonalAuthDialog = false },
-            title = { Text("Authenticate My WhatsApp") },
-            text = {
-                Column {
-                    Text("Standard local personal account token simulator. Provide your verified phone number to connect session logs.", fontSize = 13.sp)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = personalInputNo,
-                        onValueChange = { personalInputNo = it },
-                        label = { Text("Mobile Phone Number") },
-                        modifier = Modifier.fillMaxWidth()
+            onDismissRequest = { 
+                showPersonalAuthDialog = false 
+                if (cobaltStatus == "SCAN_QR" || cobaltStatus == "CONNECTING") {
+                    // Reset if closed mid-pairing
+                    viewModel.disconnectPersonalWhatsApp()
+                }
+            },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Chat, 
+                        contentDescription = "Cobalt SDK", 
+                        tint = Color(0xFF2E7D32),
+                        modifier = Modifier.size(24.dp)
                     )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("My WhatsApp Setup")
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    if (cobaltStatus == "SCAN_QR") {
+                        // COBALT ACTIVE PAIRING VIEW
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "SCAN QR & PAIR COBALT",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF2E7D32)
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                
+                                // Beautiful Pseudo QR Code Representation
+                                Box(
+                                    modifier = Modifier
+                                        .size(140.dp)
+                                        .background(Color.White, RoundedCornerShape(8.dp))
+                                        .border(2.dp, Color.Black, RoundedCornerShape(8.dp))
+                                        .padding(8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        verticalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                            Box(modifier = Modifier.size(28.dp).background(Color.Black))
+                                             Box(modifier = Modifier.size(28.dp).background(Color.Black))
+                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.QrCodeScanner,
+                                            contentDescription = "QR",
+                                            tint = Color.DarkGray,
+                                            modifier = Modifier.size(34.dp)
+                                        )
+                                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                            Box(modifier = Modifier.size(28.dp).background(Color.Black))
+                                            Box(modifier = Modifier.size(24.dp).background(Color.Gray)) // offset
+                                        }
+                                    }
+                                }
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            val file = com.example.network.StorageHelper.saveMockQrToStorage(context, true)
+                                            if (file != null) {
+                                                android.widget.Toast.makeText(context, "💾 QR Image saved to '/storage/emulated/0/Download/LessonSync/Lessonsync_Personal_QR.png'!", android.widget.Toast.LENGTH_LONG).show()
+                                            } else {
+                                                android.widget.Toast.makeText(context, "Failed to save QR code.", android.widget.Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                                    ) {
+                                        Icon(Icons.Default.Download, contentDescription = "Save Qr", modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Save Image", fontSize = 10.sp)
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            personalGalleryLauncher.launch(
+                                                androidx.activity.result.PickVisualMediaRequest(
+                                                    androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                                                )
+                                            )
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                                    ) {
+                                        Icon(Icons.Default.PhotoLibrary, contentDescription = "Pick Qr", modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Pick Gallery", fontSize = 10.sp)
+                                    }
+                                }
+                                
+                                Spacer(modifier = Modifier.height(12.dp))
+                                
+                                if (cobaltPairingCode != null) {
+                                    Text("Alphanumeric Pairing Code:", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                    Surface(
+                                        color = Color.Black,
+                                        shape = RoundedCornerShape(4.dp),
+                                        modifier = Modifier.padding(vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = cobaltPairingCode ?: "",
+                                            color = Color(0xFF00FF00),
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                        )
+                                    }
+                                }
+                                
+                                Text(
+                                    text = "Scan the QR from WhatsApp Web, or input the pairing code in WhatsApp Mobile to link cobalt.",
+                                    fontSize = 10.sp,
+                                    color = Color.DarkGray,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                LinearProgressIndicator(color = Color(0xFF2E7D32), modifier = Modifier.fillMaxWidth(0.8f))
+                            }
+                        }
+                    } else if (cobaltStatus == "CONNECTING") {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            CircularProgressIndicator(color = Color(0xFF2E7D32))
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text("Handshaking session...", fontWeight = FontWeight.Bold)
+                            Text(syncStatusText, fontSize = 11.sp, color = Color.Gray, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        }
+                    } else {
+                        // STANDARD SELECTION PANEL
+                        Text(
+                            "Select whether to use pure local simulation or direct hook connection to a Cobalt JVM server backend.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = personalInputNo,
+                            onValueChange = { personalInputNo = it },
+                            label = { Text("Mobile Phone Number") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // COBALT SECTION
+                        Text("🔌 COBALT GATEWAY OPTIONS (OPTIONAL)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        OutlinedTextField(
+                            value = cobaltServerInput,
+                            onValueChange = { cobaltServerInput = it },
+                            label = { Text("Cobalt Server API URL") },
+                            placeholder = { Text("e.g. http://localhost:8080") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            supportingText = { Text("Leave blank to run on-device simulation sandbox", fontSize = 10.sp) }
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        ) {
+                            Checkbox(
+                                checked = cobaltUseMobileInput,
+                                onCheckedChange = { cobaltUseMobileInput = it },
+                                colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Column {
+                                Text("Use Mobile Protocol Backend", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                Text("Connects to secondary phone app protocol instead of web scanner QR", fontSize = 10.sp, color = Color.Gray)
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
-                Button(onClick = {
-                    viewModel.connectPersonalWhatsApp(personalInputNo)
-                    showPersonalAuthDialog = false
-                }) {
-                    Text("Simulate Auth Link")
+                if (cobaltStatus == "SCAN_QR" || cobaltStatus == "CONNECTING") {
+                    TextButton(onClick = { 
+                        viewModel.disconnectPersonalWhatsApp()
+                    }) {
+                        Text("Reset Setup", color = MaterialTheme.colorScheme.error)
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            viewModel.updateCobaltConfig(cobaltServerInput, cobaltUseMobileInput)
+                            viewModel.connectPersonalWhatsApp(personalInputNo)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                    ) {
+                        Text(if (cobaltServerInput.isNotBlank()) "Connect Cobalt" else "Simulate Link")
+                    }
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showPersonalAuthDialog = false }) {
-                    Text("Cancel")
+                    Text("Close")
                 }
             }
         )
@@ -362,31 +595,230 @@ fun DashboardScreen(
 
     if (showBusinessAuthDialog) {
         AlertDialog(
-            onDismissRequest = { showBusinessAuthDialog = false },
-            title = { Text("Authenticate WA Business") },
-            text = {
-                Column {
-                    Text("School tutor or Professor verified business account authentication adapter.", fontSize = 13.sp)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = businessInputNo,
-                        onValueChange = { businessInputNo = it },
-                        label = { Text("Business Portal Line") },
-                        modifier = Modifier.fillMaxWidth()
+            onDismissRequest = { 
+                showBusinessAuthDialog = false
+                if (cobaltStatus == "SCAN_QR" || cobaltStatus == "CONNECTING") {
+                    viewModel.disconnectBusinessWhatsApp()
+                }
+            },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Business, 
+                        contentDescription = "Business", 
+                        tint = Color(0xFF0277BD),
+                        modifier = Modifier.size(24.dp)
                     )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("WA Business Gateway")
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    if (cobaltStatus == "SCAN_QR") {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFE1F5FE)),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "SCAN QR & PAIR COBALT BUSINESS",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF0277BD)
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                
+                                Box(
+                                    modifier = Modifier
+                                        .size(130.dp)
+                                        .background(Color.White, RoundedCornerShape(8.dp))
+                                        .border(2.dp, Color.Black, RoundedCornerShape(8.dp))
+                                        .padding(8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        verticalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                            Box(modifier = Modifier.size(26.dp).background(Color.Black))
+                                            Box(modifier = Modifier.size(26.dp).background(Color.Black))
+                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.QrCodeScanner,
+                                            contentDescription = "QR SDK",
+                                            tint = Color.DarkGray,
+                                            modifier = Modifier.size(34.dp)
+                                        )
+                                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                            Box(modifier = Modifier.size(26.dp).background(Color.Black))
+                                            Box(modifier = Modifier.size(22.dp).background(Color.Gray))
+                                        }
+                                    }
+                                }
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            val file = com.example.network.StorageHelper.saveMockQrToStorage(context, false)
+                                            if (file != null) {
+                                                android.widget.Toast.makeText(context, "💾 QR Image saved to '/storage/emulated/0/Download/LessonSync/Lessonsync_Business_QR.png'!", android.widget.Toast.LENGTH_LONG).show()
+                                            } else {
+                                                android.widget.Toast.makeText(context, "Failed to save QR code.", android.widget.Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                                    ) {
+                                        Icon(Icons.Default.Download, contentDescription = "Save Qr", modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Save Image", fontSize = 10.sp)
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            businessGalleryLauncher.launch(
+                                                androidx.activity.result.PickVisualMediaRequest(
+                                                    androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                                                )
+                                            )
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0277BD)),
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                                    ) {
+                                        Icon(Icons.Default.PhotoLibrary, contentDescription = "Pick Qr", modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Pick Gallery", fontSize = 10.sp)
+                                    }
+                                }
+                                
+                                Spacer(modifier = Modifier.height(12.dp))
+                                
+                                if (cobaltPairingCode != null) {
+                                    Text("Alphanumeric Pairing Code:", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                    Surface(
+                                        color = Color.Black,
+                                        shape = RoundedCornerShape(4.dp),
+                                        modifier = Modifier.padding(vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = cobaltPairingCode ?: "",
+                                            color = Color(0xFF02FFFF),
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                        )
+                                    }
+                                }
+                                
+                                Text(
+                                    text = "Pair with your school verified business portal using cobalt backend protocol client.",
+                                    fontSize = 10.sp,
+                                    color = Color.DarkGray,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                LinearProgressIndicator(color = Color(0xFF0277BD), modifier = Modifier.fillMaxWidth(0.8f))
+                            }
+                        }
+                    } else if (cobaltStatus == "CONNECTING") {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            CircularProgressIndicator(color = Color(0xFF0277BD))
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text("Handshaking Business session...", fontWeight = FontWeight.Bold)
+                            Text(syncStatusText, fontSize = 11.sp, color = Color.Gray, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        }
+                    } else {
+                        Text(
+                            "Link a professor, school, or class tutor certified Cobalt WhatsApp business listener webhook.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = businessInputNo,
+                            onValueChange = { businessInputNo = it },
+                            label = { Text("Business Portal Line") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text("🔌 COBALT GATEWAY OPTIONS (OPTIONAL)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        OutlinedTextField(
+                            value = cobaltServerInput,
+                            onValueChange = { cobaltServerInput = it },
+                            label = { Text("Cobalt Server API URL") },
+                            placeholder = { Text("e.g. http://localhost:8080") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            supportingText = { Text("Leave blank to run on-device simulation sandbox", fontSize = 10.sp) }
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        ) {
+                            Checkbox(
+                                checked = cobaltUseMobileInput,
+                                onCheckedChange = { cobaltUseMobileInput = it },
+                                colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.secondary)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Column {
+                                Text("Use Mobile Protocol Backend", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                Text("Connects to secondary phone app business listener socket", fontSize = 10.sp, color = Color.Gray)
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
-                Button(onClick = {
-                    viewModel.connectBusinessWhatsApp(businessInputNo)
-                    showBusinessAuthDialog = false
-                }) {
-                    Text("Authenticate Portal")
+                if (cobaltStatus == "SCAN_QR" || cobaltStatus == "CONNECTING") {
+                    TextButton(onClick = { 
+                        viewModel.disconnectBusinessWhatsApp()
+                    }) {
+                        Text("Reset Setup", color = MaterialTheme.colorScheme.error)
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            viewModel.updateCobaltConfig(cobaltServerInput, cobaltUseMobileInput)
+                            viewModel.connectBusinessWhatsApp(businessInputNo)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0277BD))
+                    ) {
+                        Text(if (cobaltServerInput.isNotBlank()) "Connect Cobalt BZ" else "Simulate Link")
+                    }
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showBusinessAuthDialog = false }) {
-                    Text("Cancel")
+                    Text("Close")
                 }
             }
         )

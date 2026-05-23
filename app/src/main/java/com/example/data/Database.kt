@@ -274,6 +274,16 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "lessonsync_database"
                 )
+                .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
+                .addCallback(object : RoomDatabase.Callback() {
+                    override fun onOpen(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                        super.onOpen(db)
+                        // Optimize database for instantaneous commits and high-frequency writes
+                        db.execSQL("PRAGMA synchronous = NORMAL")
+                        db.execSQL("PRAGMA temp_store = MEMORY")
+                        db.execSQL("PRAGMA cache_size = -8000") // 8MB high-speed memory cache allocation
+                    }
+                })
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

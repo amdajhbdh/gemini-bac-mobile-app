@@ -33,6 +33,9 @@ class MainActivity : ComponentActivity() {
         val factory = LessonSyncViewModelFactory(application, repository)
         val viewModel = ViewModelProvider(this, factory)[LessonSyncViewModel::class.java]
 
+        // Launch the programmatic on-device console API server on localhost port 9090
+        com.example.network.LocalApiServer.start(this, repository, 9090)
+
         setContent {
             MyApplicationTheme {
                 val currentTab by viewModel.currentTab.collectAsState()
@@ -78,6 +81,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        com.example.network.LocalApiServer.stop()
     }
 }
 
